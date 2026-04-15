@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Manager - Analisi Completa 2025/2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .delta-positive { color: #059669; font-weight: bold; }
+        .delta-negative { color: #dc2626; font-weight: bold; }
+        .delta-neutral { color: #6b7280; }
+        tr:hover { background-color: #f3f4f6; }
+        .tab-active { border-bottom: 4px solid #2563eb; color: #2563eb; background-color: #f8fafc; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+
+    <div id="app" class="max-w-7xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800">Analisi Prestazioni Sanitarie</h1>
+                <p class="text-slate-600 font-medium">Dataset Completo: Q1 2025 vs Q1 2026</p>
+            </div>
+            <div class="flex bg-white rounded-lg shadow-sm p-1 border border-slate-200 overflow-x-auto">
+                <button onclick="setGroup('PRMA')" id="btn-prma" class="whitespace-nowrap px-4 md:px-6 py-2 rounded-md transition-all font-medium text-slate-500 hover:bg-slate-50">Prime Visite (PRMA)</button>
+                <button onclick="setGroup('OTHER')" id="btn-other" class="whitespace-nowrap px-4 md:px-6 py-2 rounded-md transition-all font-medium text-slate-500 hover:bg-slate-50">Altre Prestazioni</button>
+                <button onclick="setGroup('ALL')" id="btn-all" class="whitespace-nowrap px-4 md:px-6 py-2 rounded-md transition-all font-medium text-slate-500 hover:bg-slate-50">Tutte le Prestazioni</button>
+            </div>
+        </div>
+
+        <!-- Dashboard Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 ring-1 ring-slate-200">
+                <p class="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Totale Q1 2025</p>
+                <h2 id="stat-2025" class="text-4xl font-black text-slate-800">0</h2>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 ring-1 ring-slate-200">
+                <p class="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Totale Q1 2026</p>
+                <h2 id="stat-2026" class="text-4xl font-black text-slate-800">0</h2>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-100 ring-1 ring-slate-200">
+                <p class="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Delta Performance</p>
+                <h2 id="stat-delta" class="text-4xl font-black">0</h2>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 items-end">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Ricerca ASL/Prestazione</label>
+                <input type="text" id="searchInput" placeholder="Digita per cercare..." class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:bg-white outline-none transition-all" oninput="updateTable()">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Filtro Regime</label>
+                <select id="regimeFilter" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-blue-500" onchange="updateTable()">
+                    <option value="ALL">Tutti i Regimi (PrEst + PsEst)</option>
+                    <option value="PrEst">Ambulatoriale (PrEst)</option>
+                    <option value="PsEst">Pronto Soccorso (PsEst)</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Filtro Regione</label>
+                <select id="regionFilter" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-blue-500" onchange="updateTable()">
+                    <option value="ALL">Tutte le Regioni</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase mb-2">Codice Specifico</label>
+                <select id="procedureFilter" class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-blue-500" onchange="updateTable()">
+                    <option value="ALL">Tutte le Prestazioni</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Main Table -->
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-800 text-white">
+                            <th class="px-6 py-4 font-bold text-xs uppercase tracking-wider">Regime</th>
+                            <th class="px-6 py-4 font-bold text-xs uppercase tracking-wider">Regione</th>
+                            <th class="px-6 py-4 font-bold text-xs uppercase tracking-wider">ASL di Residenza</th>
+                            <th class="px-6 py-4 font-bold text-xs uppercase tracking-wider">Prestazione (Nomenclatore)</th>
+                            <th class="px-6 py-4 font-bold text-xs uppercase tracking-wider text-center">2025 (Q1)</th>
+                            <th class="px-6 py-4 font-bold text-xs uppercase tracking-wider text-center">2026 (Q1)</th>
+                            <th class="px-6 py-4 font-bold text-xs uppercase tracking-wider text-center">Delta</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="text-slate-700 divide-y divide-slate-100">
+                        <!-- JS generated content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="mt-4 text-right">
+            <p id="rowCount" class="text-sm text-slate-500 font-medium"></p>
+        </div>
+    </div>
+
+    <script>
+        // DATASET INTEGRALE
+        const rawData = `PA_FILE_PROVENIENZA	PA_PRESTAZIONE_NOMENCL_REG	Regione	PA_PZ_ASL_RESIDENZA	Primo Trimestre 2025	Primo trimestre 2026
+PrEst	88713 - ECOCOLORDOPPLER TRANSCRANICO	Lombardia	030307 - ATS DELLA VAL PADANA	1	0
+PrEst	88715 - ECOCOLORDOPPLER TRANSCRANICO SENZA E CON MEZZO DI CONTRASTO	Liguria	070103 - GENOVESE	1	1
+PrEst	88715 - ECOCOLORDOPPLER TRANSCRANICO SENZA E CON MEZZO DI CONTRASTO	Piemonte	010212 - ASTI	1	0
+PrEst	88715 - ECOCOLORDOPPLER TRANSCRANICO SENZA E CON MEZZO DI CONTRASTO	Piemonte	010213 - ALESSANDRIA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Abruzzo	130202 - LANCIANO-VASTO-CHIETI	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Calabria	180201 - COSENZA	0	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Calabria	180205 - REGGIO CALABRIA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Campania	150201 - AVELLINO	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Campania	150202 - BENEVENTO	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Campania	150203 - CASERTA	1	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Campania	150204 - NAPOLI 1 CENTRO	1	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Campania	150205 - NAPOLI 2 NORD	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Campania	150206 - NAPOLI 3 SUD	2	5
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Campania	150207 - SALERNO	3	5
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Emilia-Romagna	080101 - PIACENZA	0	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Emilia-Romagna	080102 - PARMA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Emilia-Romagna	080103 - REGGIO EMILIA	0	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Emilia-Romagna	080104 - MODENA	3	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Emilia-Romagna	080109 - FERRARA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Estera	999999 - ESTERA	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Friuli Venezia Giulia	060205 - FRIULI OCCIDENTALE	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lazio	120101 - ROMA 1	0	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Liguria	070101 - IMPERIESE	21	59
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Liguria	070102 - SAVONESE	36	79
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Liguria	070103 - GENOVESE	156	367
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Liguria	070104 - CHIAVARESE	24	57
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Liguria	070105 - SPEZZINO	12	34
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030301 - ATS DI BERGAMO	0	4
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030302 - ATS DI BRESCIA	1	4
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030303 - ATS DELLINSUBRIA	1	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030304 - ATS DELLA VAL PADANA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030305 - ATS DELLA BRIANZA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030306 - ATS DELLA CITTA METROPOLITANA DI MILANO	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030307 - ATS DELLA VAL PADANA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030308 - ATS DELLA CITTA METROPOLITANA DI MILANO	4	10
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	4
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030310 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	0
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030311 - ATS DELLA BRIANZA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030312 - ATS DI PAVIA	3	6
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030314 - ATS DELLINSUBRIA	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Lombardia	030322 - ATS DELLINSUBRIA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Molise	140201 - ASREM	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010201 - CITTA DI TORINO	1	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010203 - TORINO III	1	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010204 - TORINO IV	1	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010206 - VERCELLI	0	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010207 - BIELLA	0	5
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010209 - VERBANO CUSIO OSSOLA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010210 - CUNEO I	0	4
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010211 - CUNEO II	0	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010212 - ASTI	2	4
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAACA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Piemonte	010213 - ALESSANDRIA	7	21
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Puglia	160106 - BRINDISI	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Puglia	160112 - TARANTO	0	5
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Puglia	160113 - BARLETTA-ANDRIA-TRANI	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Puglia	160114 - BARI	3	5
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Puglia	160115 - FOGGIA	1	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Puglia	160116 - LECCE	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200102 - ASL N. 2 DELLA GALLURA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200104 - ASL N. 4 DELLOGLIASTRA	1	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200301 - ASL N. 1 DI SASSARI	4	7
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200302 - ASL N. 2 DELLA GALLURA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200303 - ASL N. 3 DI NUORO	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200304 - ASL N. 4 DELLOGLIASTRA	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200305 - ASL N. 5 DI ORISTANO	1	4
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200307 - ASL N. 7 DEL SULCIS	1	0
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sardegna	200308 - ASL N. 8 DI CAGLIARI	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sicilia	190201 - AGRIGENTO	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sicilia	190202 - CALTANISSETTA	1	6
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sicilia	190203 - CATANIA	1	7
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sicilia	190204 - ENNA	1	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sicilia	190205 - MESSINA	4	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sicilia	190206 - PALERMO	2	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sicilia	190207 - RAGUSA	4	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Sicilia	190209 - DI TRAPANI	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Toscana	090201 - AZ. USL TOSCANA CENTRO	0	4
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	1	7
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Toscana	090203 - AZ. USL TOSCANA SUD-EST	1	0
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Trentino-Alto Adige	042101 - TRENTO	0	2
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Umbria	100201 - UMBRIA 1	0	1
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Valle d'Aosta	020101 - AOSTA	2	3
+PrEst	88722 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica (88.72.3)	Veneto	050120 - SCALIGERA	0	1
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Calabria	180201 - COSENZA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Calabria	180203 - CATANZARO	0	1
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Calabria	180205 - REGGIO CALABRIA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Campania	150201 - AVELLINO	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Campania	150203 - CASERTA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Campania	150206 - NAPOLI 3 SUD	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Campania	150207 - SALERNO	4	2
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Emilia-Romagna	080101 - PIACENZA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Emilia-Romagna	080102 - PARMA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Emilia-Romagna	080103 - REGGIO EMILIA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Emilia-Romagna	080104 - MODENA	2	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Friuli Venezia Giulia	060205 - FRIULI OCCIDENTALE	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Lazio	120101 - ROMA 1	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Lazio	120106 - ROMA 4	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070101 - IMPERIESE	17	4
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070102 - SAVONESE	25	1
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070103 - GENOVESE	193	1
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070104 - CHIAVARESE	26	1
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070105 - SPEZZINO	12	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Lombardia	030301 - ATS DI BERGAMO	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Lombardia	030302 - ATS DI BRESCIA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Lombardia	030305 - ATS DELLA BRIANZA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	2	1
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Lombardia	030312 - ATS DI PAVIA	2	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Molise	140201 - ASREM	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010203 - TORINO III	3	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010204 - TORINO IV	2	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010205 - TORINO V	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010206 - VERCELLI	0	2
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010208 - NOVARA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010209 - VERBANO CUSIO OSSOLA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010210 - CUNEO I	1	1
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010211 - CUNEO II	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010212 - ASTI	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Piemonte	010213 - ALESSANDRIA	5	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Puglia	160114 - BARI	3	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Puglia	160115 - FOGGIA	3	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Puglia	160116 - LECCE	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Sardegna	200301 - ASL N. 1 DI SASSARI	3	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Sardegna	200303 - ASL N. 3 DI NUORO	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Sardegna	200308 - ASL N. 8 DI CAGLIARI	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Sicilia	190201 - AGRIGENTO	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Sicilia	190203 - CATANIA	4	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Sicilia	190205 - MESSINA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Sicilia	190207 - RAGUSA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Sicilia	190208 - SIRACUSA	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Toscana	090201 - AZ. USL TOSCANA CENTRO	1	0
+PrEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	2	0
+PrEst	88724 - ECO(COLOR)DOPPLERGRAFIA CARDIACA TRANSESOFAGEA Ecocardiografia transesofagea Non associabile a ECOGRAFIA MEDIASTINICA TRANSESOFAGEA (88.73.8)	Piemonte	010213 - ALESSANDRIA	2	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Calabria	180205 - REGGIO CALABRIA	0	1
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Campania	150203 - CASERTA	0	1
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Emilia-Romagna	080102 - PARMA	1	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Emilia-Romagna	080104 - MODENA	3	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Estera	999999 - ESTERA	2	3
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Liguria	070101 - IMPERIESE	10	17
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Liguria	070102 - SAVONESE	11	19
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Liguria	070103 - GENOVESE	84	125
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Liguria	070104 - CHIAVARESE	7	17
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Liguria	070105 - SPEZZINO	3	5
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Lombardia	030308 - ATS DELLA CITTA METROPOLITANA DI MILANO	2	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Lombardia	030310 - ATS DELLA CITTA METROPOLITANA DI MILANO	2	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Lombardia	030312 - ATS DI PAVIA	0	1
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Marche	110303 - AST MACERATA	0	1
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Piemonte	010204 - TORINO IV	1	1
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Piemonte	010212 - ASTI	0	4
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Piemonte	010213 - ALESSANDRIA	3	6
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Puglia	160115 - FOGGIA	4	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Sardegna	200301 - ASL N. 1 DI SASSARI	2	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Sardegna	200305 - ASL N. 5 DI ORISTANO	0	1
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Sicilia	190202 - CALTANISSETTA	0	2
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Sicilia	190203 - CATANIA	1	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Sicilia	190205 - MESSINA	2	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Sicilia	190207 - RAGUSA	1	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAACA CARDIACA FETALE	Sicilia	190208 - SIRACUSA	0	1
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Sicilia	190209 - DI TRAPANI	1	0
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Toscana	090201 - AZ. USL TOSCANA CENTRO	0	1
+PrEst	88725 - ECO(COLOR)DOPPLERGRAFIA CARDIACA FETALE	Veneto	050112 - SERENISSIMA	0	2
+PrEst	88726 - ECO(COLOR)DOPPLERGRAFIA CARDIACA SENZA e CON MDC A riposo. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2) e ECO(COLOR)DOPPLERGRAFIA CARDIACA SENZA e CON MDC A riposo e dopo prova  (88.72.7)	Liguria	070103 - GENOVESE	0	1
+PrEst	88727 - ECO(COLOR)DOPPLERGRAFIA CARDIACA SENZA e CON MDC A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2) e ECO(COLOR)DOPPLERGRAFIA CARDIACA SENZA e CON MDC A riposo. (88.72.6)	Liguria	070103 - GENOVESE	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Abruzzo	130202 - LANCIANO-VASTO-CHIETI	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Basilicata	170202 - MATERA	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Calabria	180201 - COSENZA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Calabria	180203 - CATANZARO	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Calabria	180205 - REGGIO CALABRIA	1	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Campania	150201 - AVELLINO	0	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Campania	150202 - BENEVENTO	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Campania	150203 - CASERTA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Campania	150204 - NAPOLI 1 CENTRO	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Campania	150206 - NAPOLI 3 SUD	1	4
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Campania	150207 - SALERNO	5	5
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Emilia-Romagna	080101 - PIACENZA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Emilia-Romagna	080102 - PARMA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Emilia-Romagna	080103 - REGGIO EMILIA	1	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Emilia-Romagna	080104 - MODENA	3	3
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Emilia-Romagna	080109 - FERRARA	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Friuli Venezia Giulia	060205 - FRIULI OCCIDENTALE	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lazio	120101 - ROMA 1	1	3
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lazio	120106 - ROMA 4	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Liguria	070101 - IMPERIESE	23	28
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Liguria	070102 - SAVONESE	46	39
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Liguria	070103 - GENOVESE	191	165
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Liguria	070104 - CHIAVARESE	26	29
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Liguria	070105 - SPEZZINO	11	14
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030301 - ATS DI BERGAMO	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030302 - ATS DI BRESCIA	2	4
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030303 - ATS DELLINSUBRIA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030304 - ATS DELLA VAL PADANA	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030305 - ATS DELLA BRIANZA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030306 - ATS DELLA CITTA METROPOLITANA DI MILANO	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030307 - ATS DELLA VAL PADANA	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030308 - ATS DELLA CITTA METROPOLITANA DI MILANO	3	5
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	2	4
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030310 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030312 - ATS DI PAVIA	4	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Lombardia	030314 - ATS DELLINSUBRIA	0	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Molise	140201 - ASREM	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010201 - CITTA DI TORINO	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010203 - TORINO III	4	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010204 - TORINO IV	2	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010205 - TORINO V	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010206 - VERCELLI	0	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010207 - BIELLA	0	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010208 - NOVARA	2	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010209 - VERBANO CUSIO OSSOLA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010210 - CUNEO I	1	4
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010211 - CUNEO II	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010212 - ASTI	2	3
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Piemonte	010213 - ALESSANDRIA	9	15
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Puglia	160106 - BRINDISI	0	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Puglia	160112 - TARANTO	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Puglia	160113 - BARLETTA-ANDRIA-TRANI	0	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Puglia	160114 - BARI	4	3
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Puglia	160115 - FOGGIA	4	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Puglia	160116 - LECCE	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sardegna	200102 - ASL N. 2 DELLA GALLURA	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sardegna	200104 - ASL N. 4 DELLOGLIASTRA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sardegna	200301 - ASL N. 1 DI SASSARI	5	4
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sardegna	200302 - ASL N. 2 DELLA GALLURA	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sardegna	200303 - ASL N. 3 DI NUORO	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sardegna	200305 - ASL N. 5 DI ORISTANO	1	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sardegna	200307 - ASL N. 7 DEL SULCIS	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sardegna	200308 - ASL N. 8 DI CAGLIARI	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sicilia	190201 - AGRIGENTO	1	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sicilia	190202 - CALTANISSETTA	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sicilia	190203 - CATANIA	4	4
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sicilia	190204 - ENNA	1	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sicilia	190205 - MESSINA	3	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sicilia	190206 - PALERMO	1	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sicilia	190207 - RAGUSA	3	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Sicilia	190209 - DI TRAPANI	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Toscana	090201 - AZ. USL TOSCANA CENTRO	1	3
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	2	3
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Toscana	090203 - AZ. USL TOSCANA SUD-EST	1	0
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Trentino-Alto Adige	042101 - TRENTO	0	2
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Umbria	100201 - UMBRIA 1	0	1
+PrEst	89013 - VISITA CARDIOLOGICA DI CONTROLLO. Incluso ECG (89.52). Il referto deve comprendere le risultanze dellECG	Valle d'Aosta	020101 - AOSTA	0	2
+PrEst	8907 - VISITA MULTIDISCIPLINARE. Incluso: eventuale stesura di PROGETTO RIABILITATIVO INDIVIDUALE MULTIDISCIPLINARE	Liguria	070103 - GENOVESE	4	0
+PrEst	8907 - VISITA MULTIDISCIPLINARE. Incluso: eventuale stesura di PROGETTO RIABILITATIVO INDIVIDUALE MULTIDISCIPLINARE	Puglia	160114 - BARI	1	0
+PrEst	8907 - VISITA MULTIDISCIPLINARE. Incluso: eventuale stesura di PROGETTO RIABILITATIVO INDIVIDUALE MULTIDISCIPLINARE	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	1	0
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Calabria	180205 - REGGIO CALABRIA	1	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Campania	150204 - NAPOLI 1 CENTRO	1	0
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Lazio	120106 - ROMA 4	1	0
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Liguria	070101 - IMPERIESE	0	4
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Liguria	070102 - SAVONESE	6	5
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Liguria	070103 - GENOVESE	9	8
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Liguria	070104 - CHIAVARESE	2	0
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Liguria	070105 - SPEZZINO	2	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Lombardia	030301 - ATS DI BERGAMO	0	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Lombardia	030310 - ATS DELLA CITTA METROPOLITANA DI MILANO	0	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Lombardia	030322 - ATS DELLINSUBRIA	0	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Piemonte	010213 - ALESSANDRIA	1	0
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Puglia	160112 - TARANTO	0	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Puglia	160114 - BARI	2	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Sardegna	200104 - ASL N. 4 DELLOGLIASTRA	0	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Sardegna	200304 - ASL N. 4 DELLOGLIASTRA	0	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Sardegna	200308 - ASL N. 8 DI CAGLIARI	0	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Sicilia	190202 - CALTANISSETTA	0	1
+PrEst	89371 - SPIROMETRIA SEMPLICE. Non associabile a 89.37.4 TEST DI BRONCODILATAZIONE FARMACOLOGICA	Sicilia	190206 - PALERMO	1	0
+PrEst	89383 - DIFFUSIONE ALVEOLO-CAPILLARE  DEL CO	Calabria	180205 - REGGIO CALABRIA	1	0
+PrEst	89383 - DIFFUSIONE ALVEOLO-CAPILLARE  DEL CO	Liguria	070102 - SAVONESE	2	0
+PrEst	89383 - DIFFUSIONE ALVEOLO-CAPILLARE  DEL CO	Liguria	070103 - GENOVESE	1	1
+PrEst	89383 - DIFFUSIONE ALVEOLO-CAPILLARE  DEL CO	Liguria	070104 - CHIAVARESE	1	0
+PrEst	89383 - DIFFUSIONE ALVEOLO-CAPILLARE  DEL CO	Liguria	070105 - SPEZZINO	2	0
+PrEst	89383 - DIFFUSIONE ALVEOLO-CAPILLARE  DEL CO	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	0
+PrEst	89386 - VALUTAZIONE DELLA VENTILAZIONE E DEI GAS ESPIRATI E RELATIVI PARAMETRI. Incluso: Capnogramma	Liguria	070101 - IMPERIESE	0	1
+PrEst	89386 - VALUTAZIONE DELLA VENTILAZIONE E DEI GAS ESPIRATI E RELATIVI PARAMETRI. Incluso: Capnogramma	Liguria	070102 - SAVONESE	3	1
+PrEst	89386 - VALUTAZIONE DELLA VENTILAZIONE E DEI GAS ESPIRATI E RELATIVI PARAMETRI. Incluso: Capnogramma	Liguria	070103 - GENOVESE	5	2
+PrEst	89386 - VALUTAZIONE DELLA VENTILAZIONE E DEI GAS ESPIRATI E RELATIVI PARAMETRI. Incluso: Capnogramma	Liguria	070105 - SPEZZINO	2	0
+PrEst	89386 - VALUTAZIONE DELLA VENTILAZIONE E DEI GAS ESPIRATI E RELATIVI PARAMETRI. Incluso: Capnogramma	Piemonte	010213 - ALESSANDRIA	1	0
+PrEst	89386 - VALUTAZIONE DELLA VENTILAZIONE E DEI GAS ESPIRATI E RELATIVI PARAMETRI. Incluso: Capnogramma	Puglia	160114 - BARI	1	1
+PrEst	89386 - VALUTAZIONE DELLA VENTILAZIONE E DEI GAS ESPIRATI E RELATIVI PARAMETRI. Incluso: Capnogramma	Sicilia	190206 - PALERMO	1	0
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Calabria	180203 - CATANZARO	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Calabria	180205 - REGGIO CALABRIA	1	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Campania	150204 - NAPOLI 1 CENTRO	1	0
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Campania	150206 - NAPOLI 3 SUD	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Emilia-Romagna	080102 - PARMA	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Emilia-Romagna	080109 - FERRARA	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lazio	120101 - ROMA 1	1	2
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lazio	120106 - ROMA 4	1	0
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Liguria	070101 - IMPERIESE	3	7
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Liguria	070102 - SAVONESE	17	12
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Liguria	070103 - GENOVESE	35	48
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Liguria	070104 - CHIAVARESE	4	4
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Liguria	070105 - SPEZZINO	4	6
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lombardia	030301 - ATS DI BERGAMO	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lombardia	030308 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lombardia	030310 - ATS DELLA CITTA METROPOLITANA DI MILANO	0	2
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lombardia	030312 - ATS DI PAVIA	1	0
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lombardia	030314 - ATS DELLINSUBRIA	0	2
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Lombardia	030322 - ATS DELLINSUBRIA	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Molise	140201 - ASREM	1	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Piemonte	010210 - CUNEO I	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Piemonte	010213 - ALESSANDRIA	2	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Puglia	160112 - TARANTO	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Puglia	160114 - BARI	3	2
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Puglia	160115 - FOGGIA	1	0
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Sardegna	200104 - ASL N. 4 DELLOGLIASTRA	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Sardegna	200304 - ASL N. 4 DELLOGLIASTRA	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Sardegna	200305 - ASL N. 5 DI ORISTANO	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Sardegna	200308 - ASL N. 8 DI CAGLIARI	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Sicilia	190202 - CALTANISSETTA	0	1
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Sicilia	190206 - PALERMO	2	0
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Sicilia	190207 - RAGUSA	1	0
+PrEst	8941 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO O CON PEDANA MOBILE. Escluso: Test da sforzo cardiopolmonare (89.44.1). Non associabile a 92.05.F, 92.09.1 e 92.09.9	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	1	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Calabria	180205 - REGGIO CALABRIA	1	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Lazio	120106 - ROMA 4	1	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Liguria	070102 - SAVONESE	5	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Liguria	070103 - GENOVESE	15	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Liguria	070104 - CHIAVARESE	2	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Piemonte	010207 - BIELLA	1	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Piemonte	010212 - ASTI	1	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Puglia	160114 - BARI	1	0
+PrEst	8943 - TEST CARDIOVASCOLARE DA SFORZO CON CICLOERGOMETRO -- Escluso: Prova da sforzo cardiorespiratorio (89.44.1)	Puglia	160116 - LECCE	1	0
+PrEst	89441 - TEST DA SFORZO CARDIOPOLMONARE. Incluso: ECG (89.52) , Analisi dei gas respiratori, Determinazione della ventilazione, Emogasanalisi	Campania	150204 - NAPOLI 1 CENTRO	1	0
+PrEst	89441 - TEST DA SFORZO CARDIOPOLMONARE. Incluso: ECG (89.52) , Analisi dei gas respiratori, Determinazione della ventilazione, Emogasanalisi	Liguria	070102 - SAVONESE	0	1
+PrEst	89441 - TEST DA SFORZO CARDIOPOLMONARE. Incluso: ECG (89.52) , Analisi dei gas respiratori, Determinazione della ventilazione, Emogasanalisi	Liguria	070103 - GENOVESE	0	1
+PrEst	89441 - TEST DA SFORZO CARDIOPOLMONARE. Incluso: ECG (89.52) , Analisi dei gas respiratori, Determinazione della ventilazione, Emogasanalisi	Lombardia	030301 - ATS DI BERGAMO	1	0
+PrEst	89441 - TEST DA SFORZO CARDIOPOLMONARE. Incluso: ECG (89.52) , Analisi dei gas respiratori, Determinazione della ventilazione, Emogasanalisi	Puglia	160114 - BARI	1	0
+PrEst	89441 - TEST DA SFORZO CARDIOPOLMONARE. Incluso: ECG (89.52) , Analisi dei gas respiratori, Determinazione della ventilazione, Emogasanalisi	Sardegna	200304 - ASL N. 4 DELLOGLIASTRA	0	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Campania	150201 - AVELLINO	1	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Campania	150205 - NAPOLI 2 NORD	0	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Emilia-Romagna	080103 - REGGIO EMILIA	1	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Lazio	120101 - ROMA 1	2	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Liguria	070101 - IMPERIESE	1	5
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Liguria	070102 - SAVONESE	4	5
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Liguria	070103 - GENOVESE	7	21
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Liguria	070104 - CHIAVARESE	1	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Lombardia	030303 - ATS DELLINSUBRIA	1	0
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Lombardia	030312 - ATS DI PAVIA	1	2
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE di PACE-MAKER	Piemonte	010204 - TORINO IV	1	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Piemonte	010208 - NOVARA	4	0
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Piemonte	010213 - ALESSANDRIA	1	3
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Puglia	160114 - BARI	1	0
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Sardegna	200301 - ASL N. 1 DI SASSARI	1	0
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Sardegna	200302 - ASL N. 2 DELLA GALLURA	0	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Sicilia	190208 - SIRACUSA	0	1
+PrEst	89481 - CONTROLLO E PROGRAMMAZIONE DI PACE-MAKER	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	1	0
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Campania	150201 - AVELLINO	0	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Campania	150206 - NAPOLI 3 SUD	0	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Lazio	120101 - ROMA 1	1	0
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Liguria	070101 - IMPERIESE	8	6
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Liguria	070102 - SAVONESE	20	12
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Liguria	070103 - GENOVESE	110	101
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Liguria	070104 - CHIAVARESE	11	15
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Liguria	070105 - SPEZZINO	4	4
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Lombardia	030301 - ATS DI BERGAMO	0	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Lombardia	030308 - ATS DELLA CITTA METROPOLITANA DI MILANO	0	2
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Lombardia	030310 - ATS DELLA CITTA METROPOLITANA DI MILANO	0	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Lombardia	030311 - ATS DELLA BRIANZA	0	2
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Lombardia	030312 - ATS DI PAVIA	0	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Lombardia	030314 - ATS DELLINSUBRIA	1	0
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Piemonte	010201 - CITTA DI TORINO	4	0
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Piemonte	010206 - VERCELLI	1	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Piemonte	010210 - CUNEO I	0	2
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Piemonte	010212 - ASTI	1	0
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Piemonte	010213 - ALESSANDRIA	3	5
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Puglia	160114 - BARI	2	0
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Sardegna	200303 - ASL N. 3 DI NUORO	1	0
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Sardegna	200304 - ASL N. 4 DELLOGLIASTRA	0	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Sardegna	200305 - ASL N. 5 DI ORISTANO	0	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Sardegna	200308 - ASL N. 8 DI CAGLIARI	0	1
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Sicilia	190204 - ENNA	1	0
+PrEst	8950 - ELETTROCARDIOGRAMMA DINAMICO (secondo Holter)	Sicilia	190208 - SIRACUSA	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Basilicata	170201 - POTENZA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Basilicata	170202 - MATERA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Calabria	180201 - COSENZA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Calabria	180203 - CATANZARO	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Calabria	180205 - REGGIO CALABRIA	1	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Campania	150203 - CASERTA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Campania	150206 - NAPOLI 3 SUD	1	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Campania	150207 - SALERNO	6	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Emilia-Romagna	080101 - PIACENZA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Emilia-Romagna	080103 - REGGIO EMILIA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Emilia-Romagna	080104 - MODENA	3	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Emilia-Romagna	080109 - FERRARA	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Friuli Venezia Giulia	060205 - FRIULI OCCIDENTALE	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lazio	120101 - ROMA 1	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lazio	120106 - ROMA 4	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Liguria	070101 - IMPERIESE	25	21
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Liguria	070102 - SAVONESE	43	30
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Liguria	070103 - GENOVESE	267	204
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Liguria	070104 - CHIAVARESE	23	23
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Liguria	070105 - SPEZZINO	15	12
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030301 - ATS DI BERGAMO	1	3
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030302 - ATS DI BRESCIA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030303 - ATS DELLINSUBRIA	1	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030305 - ATS DELLA BRIANZA	1	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030308 - ATS DELLA CITTA METROPOLITANA DI MILANO	2	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	2	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030311 - ATS DELLA BRIANZA	1	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030312 - ATS DI PAVIA	5	2
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Lombardia	030322 - ATS DELLINSUBRIA	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Molise	140201 - ASREM	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Piemonte	010203 - TORINO III	2	2
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Piemonte	010205 - TORINO V	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Piemonte	010206 - VERCELLI	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Piemonte	010208 - NOVARA	2	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Piemonte	010209 - VERBANO CUSIO OSSOLA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Piemonte	010210 - CUNEO I	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Piemonte	010211 - CUNEO II	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Piemonte	010213 - ALESSANDRIA	8	6
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Puglia	160106 - BRINDISI	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Puglia	160112 - TARANTO	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Puglia	160113 - BARLETTA-ANDRIA-TRANI	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Puglia	160114 - BARI	2	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Puglia	160115 - FOGGIA	4	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Puglia	160116 - LECCE	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sardegna	200104 - ASL N. 4 DELLOGLIASTRA	1	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sardegna	200301 - ASL N. 1 DI SASSARI	5	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sardegna	200303 - ASL N. 3 DI NUORO	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sardegna	200305 - ASL N. 5 DI ORISTANO	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sardegna	200307 - ASL N. 7 DEL SULCIS	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sardegna	200308 - ASL N. 8 DI CAGLIARI	1	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sicilia	190201 - AGRIGENTO	1	2
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sicilia	190202 - CALTANISSETTA	0	2
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sicilia	190203 - CATANIA	3	2
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sicilia	190204 - ENNA	1	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sicilia	190205 - MESSINA	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sicilia	190206 - PALERMO	1	2
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sicilia	190207 - RAGUSA	2	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Sicilia	190208 - SIRACUSA	0	1
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Toscana	090201 - AZ. USL TOSCANA CENTRO	1	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	3	0
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Valle d'Aosta	020101 - AOSTA	0	2
+PrEst	8952 - ELETTROCARDIOGRAMMA. Non associabile a Prima visita cardiologica (89.7A.3), Visita cardiologica di controllo (89.01.3)	Veneto	050116 - EUGANEA	0	1
+PrEst	89611 - MONITORAGGIO CONTINUO [24 Ore] DELLA PRESSIONE ARTERIOSA	Calabria	180203 - CATANZARO	1	0
+PrEst	89611 - MONITORAGGIO CONTINUO [24 Ore] DELLA PRESSIONE ARTERIOSA	Emilia-Romagna	080102 - PARMA	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Calabria	180201 - COSENZA	0	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Campania	150201 - AVELLINO	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Campania	150202 - BENEVENTO	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Campania	150203 - CASERTA	1	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Campania	150204 - NAPOLI 1 CENTRO	3	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Campania	150205 - NAPOLI 2 NORD	0	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Campania	150206 - NAPOLI 3 SUD	1	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Campania	150207 - SALERNO	2	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Emilia-Romagna	080101 - PIACENZA	0	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Emilia-Romagna	080103 - REGGIO EMILIA	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Emilia-Romagna	080114 - USL DI ROMAGNA	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Estera	999999 - ESTERA	0	3
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Friuli Venezia Giulia	060205 - FRIULI OCCIDENTALE	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Liguria	070101 - IMPERIESE	16	44
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Liguria	070102 - SAVONESE	43	59
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Liguria	070103 - GENOVESE	227	333
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Liguria	070104 - CHIAVARESE	46	53
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Liguria	070105 - SPEZZINO	12	24
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Lombardia	030301 - ATS DI BERGAMO	0	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Lombardia	030306 - ATS DELLA CITTA METROPOLITANA DI MILANO	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Lombardia	030308 - ATS DELLA CITTA METROPOLITANA DI MILANO	0	5
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Lombardia	030309 - ATS DELLA CITTA METROPOLITANA DI MILANO	1	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Lombardia	030312 - ATS DI PAVIA	1	4
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Lombardia	030313 - ATS DELLA MONTAGNA	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Piemonte	010203 - TORINO III	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Piemonte	010206 - VERCELLI	0	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Piemonte	010207 - BIELLA	0	3
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Piemonte	010208 - NOVARA	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Piemonte	010210 - CUNEO I	1	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Piemonte	010211 - CUNEO II	0	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Piemonte	010212 - ASTI	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Piemonte	010213 - ALESSANDRIA	11	14
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Puglia	160112 - TARANTO	0	4
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Puglia	160113 - BARLETTA-ANDRIA-TRANI	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Puglia	160114 - BARI	2	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Puglia	160115 - FOGGIA	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Puglia	160116 - LECCE	0	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sardegna	200301 - ASL N. 1 DI SASSARI	1	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sardegna	200303 - ASL N. 3 DI NUORO	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sardegna	200304 - ASL N. 4 DELLOGLIASTRA	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sardegna	200305 - ASL N. 5 DI ORISTANO	0	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sicilia	190201 - AGRIGENTO	2	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sicilia	190202 - CALTANISSETTA	1	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sicilia	190203 - CATANIA	1	3
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sicilia	190205 - MESSINA	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sicilia	190206 - PALERMO	1	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sicilia	190207 - RAGUSA	1	2
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Sicilia	190208 - SIRACUSA	1	0
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Toscana	090201 - AZ. USL TOSCANA CENTRO	0	1
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	0	5
+PrEst	897A3 - PRMA VISITA CARDIOLOGICA. Incluso: ECG (89.52)	Valle d'Aosta	020101 - AOSTA	2	1
+PrEst	91492 - PRELIEVO DI SANGUE VENOSO	Liguria	070103 - GENOVESE	0	3
+PsEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A ripos (88.72.2)	Basilicata	170202 - MATERA	1	0
+PsEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Campania	150203 - CASERTA	1	0
+PsEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Campania	150206 - NAPOLI 3 SUD	0	1
+PsEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Estera	999999 - ESTERA	0	1
+PsEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070102 - SAVONESE	0	3
+PsEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070103 - GENOVESE	10	6
+PsEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070104 - CHIAVARESE	0	1
+PsEst	88723 - ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo e dopo prova fisica o farmacologica. Non associabile a ECO(COLOR)DOPPLERGRAFIA CARDIACA A riposo (88.72.2)	Liguria	070105 - SPEZZINO	0	1
+PsEst	89071 - 	Estera	999999 - ESTERA	0	1
+PsEst	89071 - 	Liguria	070102 - SAVONESE	0	1
+PsEst	89071 - 	Liguria	070103 - GENOVESE	7	5
+PsEst	89071 - 	Puglia	160114 - BARI	1	0
+PsEst	89090 - 	Basilicata	170201 - POTENZA	0	1
+PsEst	89090 - 	Basilicata	170202 - MATERA	1	0
+PsEst	89090 - 	Calabria	180205 - REGGIO CALABRIA	1	0
+PsEst	89090 - 	Campania	150203 - CASERTA	1	0
+PsEst	89090 - 	Campania	150205 - NAPOLI 2 NORD	1	0
+PsEst	89090 - 	Campania	150206 - NAPOLI 3 SUD	0	1
+PsEst	89090 - 	Emilia-Romagna	080114 - USL DI ROMAGNA	0	1
+PsEst	89090 - 	Estera	999999 - ESTERA	0	3
+PsEst	89090 - 	Liguria	070101 - IMPERIESE	2	1
+PsEst	89090 - 	Liguria	070102 - SAVONESE	5	6
+PsEst	89090 - 	Liguria	070103 - GENOVESE	106	185
+PsEst	89090 - 	Liguria	070104 - CHIAVARESE	13	20
+PsEst	89090 - 	Liguria	070105 - SPEZZINO	1	5
+PsEst	89090 - 	Lombardia	030312 - ATS DI PAVIA	2	1
+PsEst	89090 - 	Lombardia	030314 - ATS DELLINSUBRIA	1	0
+PsEst	89090 - 	Piemonte	010201 - CITTA DI TORINO	1	0
+PsEst	89090 - 	Piemonte	010210 - CUNEO I	0	1
+PsEst	89090 - 	Piemonte	010213 - ALESSANDRIA	5	1
+PsEst	89090 - 	Puglia	160114 - BARI	1	0
+PsEst	89090 - 	Sardegna	200301 - ASL N. 1 DI SASSARI	1	0
+PsEst	89090 - 	Sicilia	190207 - RAGUSA	0	1
+PsEst	89090 - 	Toscana	090202 - AZ. USL TOSCANA NORD-OVEST	0	1
+PsEst	89090 - 	Veneto	050120 - SCALIGERA	1	0
+PsEst	HOLT - 	Liguria	070103 - GENOVESE	0	1
+PsEst	HPRESS - 	Estera	999999 - ESTERA	1	0`;
+
+        let currentGroup = 'ALL'; 
+
+        function parseData() {
+            const lines = rawData.trim().split('\n');
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split('\t');
+                if (cols.length < 6) continue;
+                data.push({
+                    provenienza: cols[0],
+                    prestazione: cols[1],
+                    regione: cols[2],
+                    asl: cols[3],
+                    q2025: parseInt(cols[4]) || 0,
+                    q2026: parseInt(cols[5]) || 0,
+                    delta: (parseInt(cols[5]) || 0) - (parseInt(cols[4]) || 0)
+                });
+            }
+            return data;
+        }
+
+        const dataStore = parseData();
+
+        function populateFilters() {
+            // Regioni
+            const regions = [...new Set(dataStore.map(item => item.regione))].sort();
+            const regSelect = document.getElementById('regionFilter');
+            regSelect.innerHTML = '<option value="ALL">Tutte le Regioni</option>';
+            regions.forEach(reg => {
+                const opt = document.createElement('option');
+                opt.value = reg;
+                opt.textContent = reg;
+                regSelect.appendChild(opt);
+            });
+            updateProcedureDropdown();
+        }
+
+        function updateProcedureDropdown() {
+            const procSelect = document.getElementById('procedureFilter');
+            const filteredProcs = dataStore
+                .filter(item => {
+                    if (currentGroup === 'ALL') return true;
+                    return currentGroup === 'PRMA' ? item.prestazione.includes('PRMA') : !item.prestazione.includes('PRMA');
+                })
+                .map(item => item.prestazione);
+            
+            const uniqueProcs = [...new Set(filteredProcs)].sort();
+            procSelect.innerHTML = '<option value="ALL">Tutte le Prestazioni</option>';
+            uniqueProcs.forEach(proc => {
+                const opt = document.createElement('option');
+                opt.value = proc;
+                opt.textContent = proc.length > 70 ? proc.substring(0, 67) + '...' : proc;
+                procSelect.appendChild(opt);
+            });
+        }
+
+        function setGroup(group) {
+            currentGroup = group;
+            ['btn-prma', 'btn-other', 'btn-all'].forEach(id => {
+                document.getElementById(id).classList.remove('tab-active');
+                document.getElementById(id).classList.add('text-slate-500');
+            });
+
+            const activeId = group === 'PRMA' ? 'btn-prma' : group === 'OTHER' ? 'btn-other' : 'btn-all';
+            document.getElementById(activeId).classList.add('tab-active');
+            document.getElementById(activeId).classList.remove('text-slate-500');
+            
+            document.getElementById('procedureFilter').value = 'ALL';
+            updateProcedureDropdown();
+            updateTable();
+        }
+
+        function updateTable() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const regime = document.getElementById('regimeFilter').value;
+            const region = document.getElementById('regionFilter').value;
+            const procedure = document.getElementById('procedureFilter').value;
+            const tableBody = document.getElementById('tableBody');
+
+            let filtered = dataStore.filter(item => {
+                const matchesGroup = (currentGroup === 'ALL') || 
+                                   (currentGroup === 'PRMA' ? item.prestazione.includes('PRMA') : !item.prestazione.includes('PRMA'));
+                const matchesSearch = item.prestazione.toLowerCase().includes(search) || item.asl.toLowerCase().includes(search);
+                const matchesRegime = regime === 'ALL' || item.provenienza === regime;
+                const matchesRegion = region === 'ALL' || item.regione === region;
+                const matchesProcedure = procedure === 'ALL' || item.prestazione === procedure;
+                
+                return matchesGroup && matchesSearch && matchesRegime && matchesRegion && matchesProcedure;
+            });
+
+            let t25 = 0, t26 = 0;
+            filtered.forEach(d => { t25 += d.q2025; t26 += d.q2026; });
+            
+            document.getElementById('stat-2025').textContent = t25.toLocaleString();
+            document.getElementById('stat-2026').textContent = t26.toLocaleString();
+            const totalDelta = t26 - t25;
+            const deltaEl = document.getElementById('stat-delta');
+            deltaEl.textContent = (totalDelta >= 0 ? '+' : '') + totalDelta.toLocaleString();
+            deltaEl.className = `text-4xl font-black ${totalDelta > 0 ? 'text-emerald-600' : totalDelta < 0 ? 'text-red-600' : 'text-slate-800'}`;
+
+            document.getElementById('rowCount').textContent = `Righe visualizzate: ${filtered.length}`;
+
+            tableBody.innerHTML = filtered.map(item => `
+                <tr class="transition-colors border-b border-slate-50">
+                    <td class="px-6 py-4 text-xs font-black ${item.provenienza === 'PsEst' ? 'text-orange-600' : 'text-blue-600'} uppercase">${item.provenienza}</td>
+                    <td class="px-6 py-4 text-sm font-medium text-slate-800">${item.regione}</td>
+                    <td class="px-6 py-4 text-sm font-medium text-slate-600">${item.asl}</td>
+                    <td class="px-6 py-4 text-sm text-slate-500 leading-tight">${item.prestazione}</td>
+                    <td class="px-6 py-4 text-sm text-center font-mono font-black text-slate-700">${item.q2025}</td>
+                    <td class="px-6 py-4 text-sm text-center font-mono font-black text-slate-800">${item.q2026}</td>
+                    <td class="px-6 py-4 text-sm text-center">
+                        <span class="${item.delta > 0 ? 'delta-positive' : item.delta < 0 ? 'delta-negative' : 'delta-neutral'}">
+                            ${item.delta > 0 ? '+' : ''}${item.delta}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+
+            if (filtered.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="7" class="px-6 py-20 text-center text-slate-400 italic font-medium">Nessuna prestazione corrispondente ai filtri impostati</td></tr>`;
+            }
+        }
+
+        window.onload = () => {
+            populateFilters();
+            setGroup('ALL'); 
+        };
+    </script>
+</body>
+</html>
